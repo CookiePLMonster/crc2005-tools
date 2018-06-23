@@ -32,28 +32,33 @@ namespace LZWTools
 			fread( inputBuf, 1, inputSize, hFile );
 			fclose(hFile);
 
-			int outputSize = LZW_expand_size( inputBuf, inputSize );
-			uint8_t* outputBuf = new uint8_t[outputSize];
-
-			LZW_decompress( inputBuf, inputSize, outputBuf, outputSize, LZW_VERSION );
-
-			wchar_t outPath[MAX_PATH];
-			if ( outName == nullptr )
+			int outputSize = LZW_expand_size( inputBuf, inputSize ); // Returns negative values on failure
+			if ( outputSize >= 0 )
 			{
-				wcscpy_s( outPath, file );
-				PathRenameExtension( outPath, L".ishd" );
-				outName = outPath;
-			}
+				uint8_t* outputBuf = new uint8_t[outputSize];
 
-			FILE* outFile = nullptr;
-			if ( _wfopen_s( &outFile, outName, L"wb") == 0 )
-			{
-				fwrite( outputBuf, 1, outputSize, outFile );
-				fclose( outFile );		
+				outputSize = LZW_decompress( inputBuf, inputSize, outputBuf, outputSize, LZW_VERSION );
+				if ( outputSize > 0 )
+				{
+					wchar_t outPath[MAX_PATH];
+					if ( outName == nullptr )
+					{
+						wcscpy_s( outPath, file );
+						PathRenameExtension( outPath, L".ishd" );
+						outName = outPath;
+					}
+
+					FILE* outFile = nullptr;
+					if ( _wfopen_s( &outFile, outName, L"wb") == 0 )
+					{
+						fwrite( outputBuf, 1, outputSize, outFile );
+						fclose( outFile );		
+					}
+				}
+				delete[] outputBuf;
 			}
 
 			delete[] inputBuf;
-			delete[] outputBuf;
 		}
 	}
 
@@ -72,27 +77,32 @@ namespace LZWTools
 			fclose(hFile);
 
 			int outputSize = LZW_shrink_size( inputBuf, inputSize );
-			uint8_t* outputBuf = new uint8_t[outputSize];
-
-			LZW_compress( inputBuf, inputSize, outputBuf, outputSize, LZW_VERSION );
-
-			wchar_t outPath[MAX_PATH];
-			if ( outName == nullptr )
+			if ( outputSize > 0 )
 			{
-				wcscpy_s( outPath, file );
-				PathRenameExtension( outPath, L".dat" );
-				outName = outPath;
-			}
+				uint8_t* outputBuf = new uint8_t[outputSize];
 
-			FILE* outFile = nullptr;
-			if ( _wfopen_s( &outFile, outName, L"wb") == 0 )
-			{
-				fwrite( outputBuf, 1, outputSize, outFile );
-				fclose( outFile );		
+				outputSize = LZW_compress( inputBuf, inputSize, outputBuf, outputSize, LZW_VERSION );
+				if ( outputSize > 0 )
+				{
+					wchar_t outPath[MAX_PATH];
+					if ( outName == nullptr )
+					{
+						wcscpy_s( outPath, file );
+						PathRenameExtension( outPath, L".dat" );
+						outName = outPath;
+					}
+
+					FILE* outFile = nullptr;
+					if ( _wfopen_s( &outFile, outName, L"wb") == 0 )
+					{
+						fwrite( outputBuf, 1, outputSize, outFile );
+						fclose( outFile );		
+					}
+				}
+				delete[] outputBuf;
 			}
 
 			delete[] inputBuf;
-			delete[] outputBuf;
 		}
 	}
 
