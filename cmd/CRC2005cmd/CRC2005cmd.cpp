@@ -8,6 +8,7 @@
 #include <shellapi.h>
 #include <io.h>
 #include <Shlwapi.h>
+#include <algorithm>
 
 #include "MemoryMgr.h"
 
@@ -17,7 +18,7 @@ namespace LZWTools
 {
 	static constexpr int LZW_VERSION = 11;
 
-	void UnpackLZW( const wchar_t* file )
+	void UnpackLZW( const wchar_t* file, const wchar_t* outName )
 	{
 		auto LZW_decompress = (int(*)(const uint8_t* input, uint32_t inputSize, uint8_t* output, uint32_t outputSize, int version))0x403530;
 		auto LZW_expand_size = (int(*)(const uint8_t* input, uint32_t inputSize))0x402DB0;
@@ -37,11 +38,15 @@ namespace LZWTools
 			LZW_decompress( inputBuf, inputSize, outputBuf, outputSize, LZW_VERSION );
 
 			wchar_t outPath[MAX_PATH];
-			wcscpy_s( outPath, file );
-			PathRenameExtension( outPath, L".ishd" );
+			if ( outName == nullptr )
+			{
+				wcscpy_s( outPath, file );
+				PathRenameExtension( outPath, L".ishd" );
+				outName = outPath;
+			}
 
 			FILE* outFile = nullptr;
-			if ( _wfopen_s( &outFile, outPath, L"wb") == 0 )
+			if ( _wfopen_s( &outFile, outName, L"wb") == 0 )
 			{
 				fwrite( outputBuf, 1, outputSize, outFile );
 				fclose( outFile );		
@@ -52,7 +57,7 @@ namespace LZWTools
 		}
 	}
 
-	void PackLZW( const wchar_t* file )
+	void PackLZW( const wchar_t* file, const wchar_t* outName )
 	{
 		auto LZW_shrink_size = (int(*)(const uint8_t* input, uint32_t inputSize))0x403230;
 		auto LZW_compress = (int(*)(const uint8_t* input, uint32_t inputSize, uint8_t* output, uint32_t outputSize, int version))0x402E30;
@@ -72,11 +77,15 @@ namespace LZWTools
 			LZW_compress( inputBuf, inputSize, outputBuf, outputSize, LZW_VERSION );
 
 			wchar_t outPath[MAX_PATH];
-			wcscpy_s( outPath, file );
-			PathRenameExtension( outPath, L".dat" );
+			if ( outName == nullptr )
+			{
+				wcscpy_s( outPath, file );
+				PathRenameExtension( outPath, L".dat" );
+				outName = outPath;
+			}
 
 			FILE* outFile = nullptr;
-			if ( _wfopen_s( &outFile, outPath, L"wb") == 0 )
+			if ( _wfopen_s( &outFile, outName, L"wb") == 0 )
 			{
 				fwrite( outputBuf, 1, outputSize, outFile );
 				fclose( outFile );		
@@ -89,28 +98,58 @@ namespace LZWTools
 
 	bool ProcessCommandLineArguments( LPWSTR* cmdLine, int numArgs )
 	{
-		for ( int i = 2; i < numArgs; i++ )
+		// A simple helper for managing commandline arguments
+		class CMDLine
 		{
-			// Decompress LZW archive
-			if ( _wcsicmp( cmdLine[i], L"-u" ) == 0 )
+		public:
+			CMDLine( LPWSTR* cmdLine, int numArgs )
+				: begin(cmdLine), end(cmdLine+numArgs)
 			{
-				if ( i + 1 < numArgs )
-				{
-					UnpackLZW( cmdLine[i + 1] );
-					return true;
-				}
 			}
 
-			// Compress LZW archive
-			else if ( _wcsicmp( cmdLine[i], L"-p" ) == 0 )
+			bool hasOption( LPCWSTR opt ) const
 			{
-				if ( i + 1 < numArgs )
-				{
-					PackLZW( cmdLine[i + 1] );
-					return true;
-				}
+				return std::find_if( begin, end, [&]( LPCWSTR e ) {
+					return _wcsicmp( e, opt ) == 0;
+				} ) != end;
+			}
+
+			LPCWSTR getOptionArgument( LPCWSTR opt ) const
+			{
+				LPWSTR* foundOpt = std::find_if( begin, end, [&]( LPCWSTR e ) {
+					return _wcsicmp( e, opt ) == 0;
+				} );		
+				return foundOpt != end && (foundOpt+1) != end ? *(foundOpt+1) : nullptr;
+			}
+
+		private:
+			LPWSTR* const begin;
+			LPWSTR* const end;
+
+		};
+		const CMDLine commands( cmdLine, numArgs );
+
+
+		// Decompress LZW archive
+		if ( commands.hasOption( L"-u" ) )
+		{
+			if ( LPCWSTR arg = commands.getOptionArgument( L"-u") )
+			{
+				UnpackLZW( arg, commands.getOptionArgument( L"-o") );
+				return true;
 			}
 		}
+
+		// Compress LZW archive
+		if ( commands.hasOption( L"-p" ) )
+		{
+			if ( LPCWSTR arg = commands.getOptionArgument( L"-p") )
+			{
+				PackLZW( arg, commands.getOptionArgument( L"-o") );
+				return true;
+			}
+		}
+
 		return false;
 	}
 
@@ -122,16 +161,17 @@ namespace LZWTools
 		LPWSTR* cmdLine = CommandLineToArgvW( GetCommandLineW(), &numArgs );
 		if ( cmdLine != nullptr )
 		{
-			// If there are enough arguments, the first one should always be --cmd to indicate
-			// that we want the game to start in "tool" mode
-			if ( numArgs >= 2 )
+			for ( int i = 1; i < numArgs; i++ )
 			{
-				if ( _wcsicmp( cmdLine[1], L"--cmd" ) == 0 )
+				// If there are enough arguments, the first one should always be --cmd to indicate
+				// that we want the game to start in "tool" mode
+				if ( _wcsicmp( cmdLine[i], L"--cmd" ) == 0 )
 				{
-					if ( ProcessCommandLineArguments( cmdLine, numArgs ) )
+					if ( ProcessCommandLineArguments( cmdLine+(i+1), numArgs-(i+1) ) )
 					{
 						exit = true;
 					}
+					break;
 				}
 			}
 			LocalFree( cmdLine );
