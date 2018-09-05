@@ -18,6 +18,9 @@ Supported features:
 - Decompressing LZW files (`shader.dat`) - `-u input_file [-o output_file]`
 - Compressing LZW files (`shader.dat`) - `-p input_file [-o output_file]`
 
+**DISCLAIMER:** This plugin only works with a v1.2.4 (Build 907) version! This means it will **not** work with a Steam version.
+If you need this tool and you need it to work with that version, send an issue so I know at least somebody cares!
+
 ### ISHD Tool
 This script allows unpacking a ISHD shader archive to separate shader sources, as well as packing it back.
 
